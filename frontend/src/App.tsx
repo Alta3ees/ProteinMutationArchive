@@ -33,6 +33,14 @@ function Lineage({ project, selectedId, onSelect }: { project: ArchiveProject; s
 
 type MapNode = { design: Design; x: number; y: number; total: number; direct: number };
 
+function ringAngles(count: number): number[] {
+  if (count === 1) return [-Math.PI / 2];
+  if (count === 2) return [-Math.PI / 2, Math.PI / 2];
+  if (count === 3) return [-Math.PI / 2, Math.PI / 2, 0];
+  if (count === 4) return [-Math.PI / 2, Math.PI / 2, 0, Math.PI];
+  return Array.from({ length: count }, (_, index) => -Math.PI / 2 + index * (Math.PI * 2 / count));
+}
+
 function MutationMap({ project, onOpen }: { project: ArchiveProject; onOpen: (id: string) => void }) {
   const root = referenceDesign(project);
   const layout = useMemo(() => {
@@ -47,8 +55,9 @@ function MutationMap({ project, onOpen }: { project: ArchiveProject; onOpen: (id
     const nodes: MapNode[] = [{ design: root, x: center, y: center, total: 0, direct: 0 }];
     shells.forEach((total, shellIndex) => {
       const members = variants.filter((design) => sequenceDiff(root.sequence, design.sequence).length === total);
+      const angles = ringAngles(members.length);
       members.forEach((design, index) => {
-        const angle = -Math.PI / 2 + (index / members.length) * Math.PI * 2 + shellIndex * 0.38;
+        const angle = angles[index];
         const radius = shellRadius.get(total)!;
         const parent = project.designs.find((item) => item.id === design.parentId);
         nodes.push({ design, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius, total, direct: parent ? sequenceDiff(parent.sequence, design.sequence).length : total });
