@@ -1,28 +1,4 @@
 # =========================
-# Python
-# =========================
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# =========================
-# Virtual environments
-# =========================
-.venv/
-venv/
-env/
-ENV/
-
-# Conda
-*.conda
-
-# =========================
-# Jupyter
-# =========================
-.ipynb_checkpoints/
-
-# =========================
 # IDE / editors
 # =========================
 .vscode/
@@ -103,7 +79,7 @@ data/results/test_design_archive.json
 !data/processed/.gitkeep
 !data/results/mutation_scans/.gitkeep
 
-# Rosetta / PyRosetta outputs
+# Scientific structure and result files should enter archives through the UI
 *.pdb
 *.pdb.gz
 *.silent
@@ -124,18 +100,6 @@ temp/
 .env
 .env.*
 !.env.example
-
-# =========================
-# Python tooling
-# =========================
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-dist/
-build/
-*.egg-info/
 
 # =========================
 # Local experiment files
