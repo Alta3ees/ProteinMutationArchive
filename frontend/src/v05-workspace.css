@@ -1,0 +1,83 @@
+.mindmap-edges .edge-mutation-label {
+  fill: #607086;
+  font-size: 16px;
+  font-weight: 900;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #f5f7fb;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+/* v0.5 keeps the selected-design inspector intentionally light. */
+.inspector-content .lineage {
+  margin: 0 0 14px;
+}
+
+.inspector-delete-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Give sequence-distance maps enough breathing room for the larger minimum
+   one-mutation radius. */
+.tree-panel .mindmap-scroll {
+  min-height: 610px;
+}
+
+/* Evidence attachment is now an explicit section inside the full record rather
+   than a panel that visually spills outside its parent card. */
+.detail-page .import-section {
+  margin: 0 0 18px;
+  padding: 14px !important;
+  border: 1px solid #e2e7ef;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.detail-page .section-heading.compact {
+  margin-top: 18px;
+}
+
+/* Decision history: newest entry opens by default; older entries remain one
+   compact line until the scientist asks for the full rationale. */
+.decision-history details.decision-history-item {
+  border: 1px solid #e2e7ef;
+  border-radius: 10px;
+  background: #fbfcfe;
+  overflow: hidden;
+}
+
+.decision-history details + details {
+  margin-top: 8px;
+}
+
+.decision-history summary.decision-history-head {
+  cursor: pointer;
+  padding: 10px 12px;
+  list-style: none;
+}
+
+.decision-history summary.decision-history-head::-webkit-details-marker {
+  display: none;
+}
+
+.decision-history details .decision-grid {
+  padding: 0 12px 12px;
+}
+
+/* The multi-mutation composer reuses .form-row but needs the remove action to
+   stay compact beside each mutation row. */
+.detail-page .form-row > .mini-button {
+  align-self: end;
+  margin-bottom: 1px;
+}
+
+@media (min-width: 1100px) {
+  .detail-page .form-row {
+    grid-template-columns: minmax(160px, .8fr) minmax(180px, 1fr) auto;
+  }
+  .detail-page .import-section .form-row {
+    grid-template-columns: 1fr 1.5fr;
+  }
+}

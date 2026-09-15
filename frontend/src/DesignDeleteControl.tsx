@@ -14,11 +14,13 @@ export default function DesignDeleteControl({
   design,
   onUpdated,
   onSelectNew,
+  variant = "hidden",
 }: {
   slug: string;
   design: DesignNode;
   onUpdated: (project: ProjectDetail) => void;
   onSelectNew: (id: string) => void;
+  variant?: "hidden" | "full" | "button";
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,8 +55,6 @@ export default function DesignDeleteControl({
         ?? project.design_tree[0]?.id
         ?? "";
       onSelectNew(nextId);
-      // Deletion is initiated from the full scientific record. Return to the
-      // main design-map workspace instead of silently opening another record.
       window.dispatchEvent(new Event("hgd:design-deleted"));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not delete design.");
@@ -63,17 +63,23 @@ export default function DesignDeleteControl({
     }
   }
 
+  if (variant === "hidden") return null;
+
   return <>
-    <section className="detail-card wide-section design-danger-zone">
-      <div className="detail-card-header">
-        <div>
-          <p className="eyebrow">Archive maintenance</p>
-          <h3>Delete this design</h3>
-          <p className="muted">Leaf nodes can be removed from the archive without manually editing project files. HGD will not delete descendants automatically.</p>
+    {variant === "button" ? (
+      <button type="button" className="danger-button inspector-delete-button" onClick={requestDelete}>Delete design</button>
+    ) : (
+      <section className="detail-card wide-section design-danger-zone">
+        <div className="detail-card-header">
+          <div>
+            <p className="eyebrow">Archive maintenance</p>
+            <h3>Delete this design</h3>
+            <p className="muted">Leaf nodes can be removed from the archive without manually editing project files. HGD will not delete descendants automatically.</p>
+          </div>
+          <button type="button" className="danger-button" onClick={requestDelete}>Delete design</button>
         </div>
-        <button type="button" className="danger-button" onClick={requestDelete}>Delete design</button>
-      </div>
-    </section>
+      </section>
+    )}
 
     <ConfirmDialog
       open={confirmOpen}
