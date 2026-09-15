@@ -31,6 +31,46 @@ function Lineage({ project, selectedId, onSelect }: { project: ArchiveProject; s
   return <div className="tree-scroll"><ul className="lineage-tree">{project.designs.filter((d) => d.parentId === null).map(renderBranch)}</ul></div>;
 }
 
+type MapNode = { design: Design; x: number; y: number; total: number; direct: number };
+
+function MutationMap({ project, onOpen }: { project: ArchiveProject; onOpen: (id: string) => void }) {
+  const root = referenceDesign(project);
+  const layout = useMemo(() => {
+    if (!root) return { nodes: [] as MapNode[], size: 900, center: 450, shells: [] as number[] };
+    const variants = project.designs.filter((design) => design.id !== root.id);
+    const totals = variants.map((design) => sequenceDiff(root.sequence, design.sequence).length);
+    const shells = Array.from(new Set(totals)).sort((a, b) => a - b);
+    const shellRadius = new Map(shells.map((count, index) => [count, 190 + index * 210]));
+    const outer = shells.length ? shellRadius.get(shells.at(-1)!)! : 190;
+    const size = Math.max(980, (outer + 230) * 2);
+    const center = size / 2;
+    const nodes: MapNode[] = [{ design: root, x: center, y: center, total: 0, direct: 0 }];
+    shells.forEach((total, shellIndex) => {
+      const members = variants.filter((design) => sequenceDiff(root.sequence, design.sequence).length === total);
+      members.forEach((design, index) => {
+        const angle = -Math.PI / 2 + (index / members.length) * Math.PI * 2 + shellIndex * 0.38;
+        const radius = shellRadius.get(total)!;
+        const parent = project.designs.find((item) => item.id === design.parentId);
+        nodes.push({ design, x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius, total, direct: parent ? sequenceDiff(parent.sequence, design.sequence).length : total });
+      });
+    });
+    return { nodes, size, center, shells };
+  }, [project, root]);
+  if (!root) return null;
+  const byId = new Map(layout.nodes.map((node) => [node.design.id, node]));
+  return <div className="map-scroll"><div className="mutation-map" style={{ width: layout.size, height: layout.size }}>
+    <svg width={layout.size} height={layout.size} aria-hidden="true">
+      {layout.shells.map((count, index) => <g key={count}><circle className="mutation-shell" cx={layout.center} cy={layout.center} r={190 + index * 210} /><text className="shell-label" x={layout.center + 12} y={layout.center - (190 + index * 210) + 20}>{count} mutation{count === 1 ? "" : "s"} from reference</text></g>)}
+      {layout.nodes.filter((node) => node.design.parentId).map((node) => { const parent = byId.get(node.design.parentId!); return parent ? <g key={node.design.id}><line className="map-edge" x1={parent.x} y1={parent.y} x2={node.x} y2={node.y} /><text className="edge-label" x={(parent.x + node.x) / 2} y={(parent.y + node.y) / 2 - 8}>{node.direct} new</text></g> : null; })}
+    </svg>
+    {layout.nodes.map((node) => <button key={node.design.id} className={`map-node ${node.design.id === root.id ? "root" : ""} ${node.design.status}`} style={{ left: node.x, top: node.y }} onClick={() => onOpen(node.design.id)}><span className={`status-dot ${node.design.status}`} /><strong>{node.design.name}</strong><small>{node.total ? `${node.total} total mutation${node.total === 1 ? "" : "s"}` : "Reference sequence"}</small><span className="node-evidence">{node.design.evidence.length} evidence</span></button>)}
+  </div></div>;
+}
+
+function MapHome({ project, dark, onToggleDark, onOpen, onImport, onExport }: { project: ArchiveProject; dark: boolean; onToggleDark: () => void; onOpen: (id: string) => void; onImport: () => void; onExport: () => void }) {
+  return <div className="map-page"><header className="map-topbar"><div className="brand"><div className="brand-mark">PMA</div><div><strong>Protein Mutation Archive</strong><span>Mutation lineage map</span></div></div><div className="map-project"><p className="eyebrow">Active archive</p><h1>{project.name}</h1><span>{project.designs.length} sequences · {project.designs.reduce((n, d) => n + d.evidence.length, 0)} evidence records</span></div><div className="top-actions"><button className="theme-toggle" onClick={onToggleDark} title="Toggle dark mode">{dark ? "☀ Light" : "◐ Dark"}</button><button onClick={onImport}>Import</button><button onClick={onExport}>Export archive</button></div></header><section className="map-intro"><div><p className="eyebrow">Project landscape</p><h2>Mutation lineage</h2><p>Distance from the center represents total sequence mutations from the reference. Lines preserve parent–child history. Select any node to open its complete scientific record.</p></div><div className="map-legend">{Object.entries(statusLabels).map(([status, label]) => <span key={status}><i className={`status-dot ${status}`} />{label}</span>)}</div></section><MutationMap project={project} onOpen={onOpen} /></div>;
+}
+
 function AddDesignDialog({ parent, onClose, onAdd }: { parent: Design; onClose: () => void; onAdd: (design: Design) => void }) {
   const [name, setName] = useState(""); const [sequence, setSequence] = useState(parent.sequence); const [rationale, setRationale] = useState(""); const [status, setStatus] = useState<DesignStatus>("active");
   const changes = sequenceDiff(parent.sequence, sequence);
@@ -45,16 +85,19 @@ function AddEvidenceDialog({ design, onClose, onAdd }: { design: Design; onClose
 }
 
 export default function App() {
-  const [project, setProject] = useState(loadProject); const [selectedId, setSelectedId] = useState(() => loadProject().designs[0]?.id ?? ""); const [query, setQuery] = useState(""); const [tab, setTab] = useState<"record" | "compare">("record"); const [dialog, setDialog] = useState<"design" | "evidence" | null>(null); const importRef = useRef<HTMLInputElement>(null);
+  const [project, setProject] = useState(loadProject); const [selectedId, setSelectedId] = useState(() => loadProject().designs[0]?.id ?? ""); const [view, setView] = useState<"map" | "record">("map"); const [dark, setDark] = useState(() => localStorage.getItem("pma-theme") === "dark"); const [query, setQuery] = useState(""); const [tab, setTab] = useState<"record" | "compare">("record"); const [dialog, setDialog] = useState<"design" | "evidence" | null>(null); const importRef = useRef<HTMLInputElement>(null);
   useEffect(() => saveProject(project), [project]);
+  useEffect(() => { document.documentElement.dataset.theme = dark ? "dark" : "light"; localStorage.setItem("pma-theme", dark ? "dark" : "light"); }, [dark]);
   const selected = project.designs.find((design) => design.id === selectedId) ?? project.designs[0]; const root = referenceDesign(project); const parent = selected ? project.designs.find((design) => design.id === selected.parentId) : undefined;
   const filteredProject = useMemo(() => query.trim() ? { ...project, designs: project.designs.filter((d) => `${d.name} ${d.rationale} ${d.evidence.map((e) => `${e.title} ${e.summary}`).join(" ")}`.toLowerCase().includes(query.toLowerCase()) || d.id === selectedId) } : project, [project, query, selectedId]);
   function update(mutator: (current: ArchiveProject) => ArchiveProject) { setProject((current) => ({ ...mutator(current), updatedAt: new Date().toISOString() })); }
   async function importArchive(file?: File) { if (!file) return; try { const value: unknown = JSON.parse(await file.text()); if (!validateProject(value)) throw new Error(); setProject(value); setSelectedId(value.designs[0]?.id ?? ""); } catch { alert("This file is not a valid Protein Mutation Archive v1 project."); } if (importRef.current) importRef.current.value = ""; }
   if (!selected || !root) return <main className="empty">The archive contains no designs.</main>;
   const totalDiff = sequenceDiff(root.sequence, selected.sequence); const directDiff = parent ? sequenceDiff(parent.sequence, selected.sequence) : [];
+  const hiddenImport = <input ref={importRef} hidden type="file" accept=".json,.pma.json" onChange={(e) => importArchive(e.target.files?.[0])} />;
+  if (view === "map") return <>{hiddenImport}<MapHome project={project} dark={dark} onToggleDark={() => setDark((value) => !value)} onImport={() => importRef.current?.click()} onExport={() => downloadProject(project)} onOpen={(id) => { setSelectedId(id); setView("record"); }} /></>;
   return <div className="app-shell">
-    <header className="topbar"><div className="brand"><div className="brand-mark">PMA</div><div><strong>Protein Mutation Archive</strong><span>Local scientific workspace</span></div></div><div className="project-heading"><span>Project</span><strong>{project.name}</strong></div><div className="top-actions"><input ref={importRef} hidden type="file" accept=".json,.pma.json" onChange={(e) => importArchive(e.target.files?.[0])} /><button onClick={() => importRef.current?.click()}>Import</button><button onClick={() => downloadProject(project)}>Export archive</button></div></header>
+    <header className="topbar"><div className="brand"><div className="brand-mark">PMA</div><div><strong>Protein Mutation Archive</strong><span>Local scientific workspace</span></div></div><button className="back-map" onClick={() => setView("map")}>← Mutation map</button><div className="project-heading"><span>Project</span><strong>{project.name}</strong></div><div className="top-actions">{hiddenImport}<button className="theme-toggle" onClick={() => setDark((value) => !value)}>{dark ? "☀ Light" : "◐ Dark"}</button><button onClick={() => importRef.current?.click()}>Import</button><button onClick={() => downloadProject(project)}>Export archive</button></div></header>
     <aside className="sidebar"><div className="project-card"><p className="eyebrow">Active archive</p><h1>{project.name}</h1><p>{project.description}</p><div><span>{project.designs.length} sequences</span><span>{project.designs.reduce((n, d) => n + d.evidence.length, 0)} records</span></div></div><label className="search"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search designs and evidence" /></label><div className="sidebar-title"><span>Mutation lineage</span><small>Evidence</small></div><Lineage project={filteredProject} selectedId={selectedId} onSelect={setSelectedId} /><div className="legend">{Object.entries(statusLabels).map(([status, label]) => <span key={status}><i className={`status-dot ${status}`} />{label}</span>)}</div></aside>
     <main className="workspace"><section className="workspace-header"><div><div className="breadcrumb">{parent ? `${parent.name} / ` : ""}<span>{selected.name}</span></div><div className="title-row"><h2>{selected.name}</h2><span className={`status-pill ${selected.status}`}>{statusLabels[selected.status]}</span></div><p>{selected.rationale || "No scientific rationale recorded yet."}</p></div><div className="header-actions"><button className="secondary" onClick={() => setDialog("evidence")}>＋ Evidence</button><button className="primary" onClick={() => setDialog("design")}>＋ Child design</button></div></section>
       <nav className="tabs"><button className={tab === "record" ? "active" : ""} onClick={() => setTab("record")}>Scientific record</button><button className={tab === "compare" ? "active" : ""} onClick={() => setTab("compare")}>Sequence comparison</button></nav>
