@@ -1,6 +1,7 @@
 import type { ArchiveProject, Design, MutationDiff } from "./types";
 
 const STORAGE_KEY = "protein-mutation-archive:v1";
+const COLLECTION_KEY = "protein-mutation-archive:projects:v1";
 export const uid = () => crypto.randomUUID();
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -26,6 +27,21 @@ export function loadProject(): ArchiveProject {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) { try { return JSON.parse(saved) as ArchiveProject; } catch { /* use demo */ } }
   return demoProject;
+}
+
+export function loadProjects(): ArchiveProject[] {
+  const saved = localStorage.getItem(COLLECTION_KEY);
+  if (saved) {
+    try {
+      const projects = JSON.parse(saved) as ArchiveProject[];
+      if (Array.isArray(projects) && projects.length) return projects;
+    } catch { /* migrate the original single-project store */ }
+  }
+  return [loadProject()];
+}
+
+export function saveProjects(projects: ArchiveProject[]) {
+  localStorage.setItem(COLLECTION_KEY, JSON.stringify(projects));
 }
 
 export function saveProject(project: ArchiveProject) { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...project, updatedAt: new Date().toISOString() })); }
