@@ -56,6 +56,44 @@ export function validateProject(value: unknown): value is ArchiveProject {
   return item.schemaVersion === "1.0" && typeof item.name === "string" && Array.isArray(item.designs);
 }
 
+export type FastaRecord = { name: string; sequence: string };
+export type ProposedFastaDesign = FastaRecord & { parentName: string | null; distance: number; ambiguousWith: string[] };
+
+export function parseFasta(text: string): FastaRecord[] {
+  const records: FastaRecord[] = [];
+  let name = ""; let sequence = "";
+  const flush = () => {
+    const clean = sequence.replace(/\s/g, "").toUpperCase();
+    if (name && clean) records.push({ name, sequence: clean });
+  };
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.startsWith(">")) { flush(); name = line.slice(1).trim().split(/\s+/)[0] || `sequence_${records.length + 1}`; sequence = ""; }
+    else { if (!name) name = `sequence_${records.length + 1}`; sequence += line; }
+  }
+  flush();
+  return records;
+}
+
+export function proposeFastaLineage(records: FastaRecord[], referenceName: string): ProposedFastaDesign[] {
+  const reference = records.find((record) => record.name === referenceName) ?? records[0];
+  if (!reference) return [];
+  const placed = [reference]; const remaining = records.filter((record) => record !== reference);
+  const proposed: ProposedFastaDesign[] = [{ ...reference, parentName: null, distance: 0, ambiguousWith: [] }];
+  while (remaining.length) {
+    let bestRecord = remaining[0]; let bestDistance = Number.POSITIVE_INFINITY; let bestParents: FastaRecord[] = [];
+    for (const record of remaining) {
+      const distances = placed.map((parent) => ({ parent, distance: sequenceDiff(parent.sequence, record.sequence).length }));
+      const minimum = Math.min(...distances.map((item) => item.distance));
+      if (minimum < bestDistance) { bestDistance = minimum; bestRecord = record; bestParents = distances.filter((item) => item.distance === minimum).map((item) => item.parent); }
+    }
+    proposed.push({ ...bestRecord, parentName: bestParents[0]?.name ?? reference.name, distance: bestDistance, ambiguousWith: bestParents.slice(1).map((parent) => parent.name) });
+    placed.push(bestRecord); remaining.splice(remaining.indexOf(bestRecord), 1);
+  }
+  return proposed;
+}
+
 const reference = "MTYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE";
 const replace = (sequence: string, position: number, residue: string) => sequence.slice(0, position - 1) + residue + sequence.slice(position);
 const l5w = replace(reference, 5, "W");
